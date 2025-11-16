@@ -1,0 +1,11 @@
+.env
+CLAUDE.md
+.idea
+.claude
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python

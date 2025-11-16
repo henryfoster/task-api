@@ -1,0 +1,24 @@
+name: CI Pipeline
+on:
+    push:
+    pull_request:
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: create .env
+              run: cp .env.example .env
+            - name: build images
+              run: docker compose build
+            - name: start services
+              run: docker compose up -d --wait
+            - name: Run linting (Ruff)
+              run: docker compose exec -T task-api uv run ruff check app/ tests/
+            - name: Run Type Check (MyPy)
+              run: docker compose exec -T task-api uv run mypy app/ tests/
+            - name: Run Tests
+              run: docker compose exec -T task-api uv run pytest
+
+

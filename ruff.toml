@@ -1,0 +1,9 @@
+[lint]
+select = ["E", "F", "I"]  # Error, pyflakes, import sorting
+ignore = [
+  "E501",  # Line too long (Black handles this)
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
