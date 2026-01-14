@@ -1,47 +1,130 @@
 pipeline {
-    agent any
-
-    environment {
-        SHOOL = "datascientest"
-        NAME = "Anthony"
-    }
-
-    stages {
-        stage("Env Variables") {
-            environment {
-                NAME = "lewis" // overrides pipeline level NAME env variable
-                BUILD_ID = "2" // overrides the default BUILD_ID
-            }
-
+environment { // Declaration of environment variables
+DOCKER_ID = "henryfoster" // replace this with your docker-id
+DOCKER_IMAGE = "task-api"
+DOCKER_TAG = "v.${BUILD_ID}.0" // we will tag our images with the current build in order to increment the value by 1 with each new build
+}
+agent any // Jenkins will be able to select all available agents
+stages {
+        stage('Docker Build'){ // docker build image stage
             steps {
-                echo "SHOOL = ${env.SHOOL}" // prints "SHOOL = bar"
-                echo "NAME = ${env.NAME}" // prints "NAME = lewis"
-                echo "BUILD_ID = ${env.BUILD_ID}" // prints "BUILD_ID = 2"
-
                 script {
-                    env.SOMETHING = "1"   //  creates env.SOMETHING variable
+                sh '''
+                 docker rm -f jenkins
+                 docker build -t $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG .
+                sleep 6
+                '''
                 }
             }
         }
-
-        stage("Override Variables") {
-            steps {
-                script {
-                    env.SHOOL = "I LOVE DATASCIENTEST!" // it can't override env.SHOOL declared at the pipeline (or stage) level
-                    env.SOMETHING = "2" // it can override env variable created imperatively
-                }
-
-                echo "SHOOL = ${env.SHOOL}" // prints "SHOOL = bar"
-                echo "SOMETHING = ${env.SOMETHING}" // prints "SOMETHING = 2"
-
-                withEnv(["SHOOL=DEV UNIVERSITY"]) { // it can override any env variable
-                    echo "SHOOL = ${env.SHOOL}" // prints "SHOOL = DEV UNIVERSITY"
-                }
-
-                withEnv(["BUILD_ID=1"]) {
-                    echo "BUILD_ID = ${env.BUILD_ID}" // prints "BUILD_ID = 1"
+        stage(' Docker run'){ // run container from our built image
+                steps {
+                    script {
+                    sh '''
+                    docker run -d -p 80:80 --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
+                    sleep 10
+                    '''
+                    }
                 }
             }
+
+        stage('Test Acceptance'){ // we launch the curl command to validate that the container responds to the request
+            steps {
+                    script {
+                    sh '''
+                    curl localhost
+                    '''
+                    }
+            }
+
         }
-    }
+        stage('Docker Push'){ //we pass the built image to our docker hub account
+            environment
+            {
+                DOCKER_PASS = credentials("DOCKER_HUB_PASS") // we retrieve docker password from secret text called docker_hub_pass saved on jenkins
+            }
+
+            steps {
+
+                script {
+                sh '''
+                docker login -u $DOCKER_ID -p $DOCKER_PASS
+                docker push $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
+                '''
+                }
+            }
+
+        }
+
+stage('Deployment in dev'){
+        environment
+        {
+        KUBECONFIG = credentials("config") // we retrieve kubeconfig from secret file called config saved on jenkins
+        }
+            steps {
+                script {
+                sh '''
+                rm -Rf .kube
+                mkdir .kube
+                ls
+                cat $KUBECONFIG > .kube/config
+                cp fastapi/values.yaml values.yml
+                cat values.yml
+                sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+                helm upgrade --install app fastapi --values=values.yml --namespace dev
+                '''
+                }
+            }
+
+        }
+stage('Deploiement en staging'){
+        environment
+        {
+        KUBECONFIG = credentials("config") // we retrieve kubeconfig from secret file called config saved on jenkins
+        }
+            steps {
+                script {
+                sh '''
+                rm -Rf .kube
+                mkdir .kube
+                ls
+                cat $KUBECONFIG > .kube/config
+                cp fastapi/values.yaml values.yml
+                cat values.yml
+                sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+                helm upgrade --install app fastapi --values=values.yml --namespace staging
+                '''
+                }
+            }
+
+        }
+  stage('Deploiement en prod'){
+        environment
+        {
+        KUBECONFIG = credentials("config") // we retrieve kubeconfig from secret file called config saved on jenkins
+        }
+            steps {
+            // Create an Approval Button with a timeout of 15minutes.
+            // this require a manuel validation in order to deploy on production environment
+                    timeout(time: 15, unit: "MINUTES") {
+                        input message: 'Do you want to deploy in production ?', ok: 'Yes'
+                    }
+
+                script {
+                sh '''
+                rm -Rf .kube
+                mkdir .kube
+                ls
+                cat $KUBECONFIG > .kube/config
+                cp fastapi/values.yaml values.yml
+                cat values.yml
+                sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
+                helm upgrade --install app fastapi --values=values.yml --namespace prod
+                '''
+                }
+            }
+
+        }
+
+}
 }
