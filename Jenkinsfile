@@ -18,10 +18,14 @@ stages {
             }
         }
         stage(' Docker run'){ // run container from our built image
+            environment
+            {
+                DATABASE_URL = credentials("DATABASE_URL") // retrieve database URL from Jenkins secret
+            }
                 steps {
                     script {
                     sh '''
-                    docker run -d -p 80:8000 --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
+                    docker run -d -p 80:8000 -e DATABASE_URL=$DATABASE_URL --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
                     sleep 10
                     '''
                     }
@@ -60,6 +64,7 @@ stage('Deployment in dev'){
         environment
         {
         KUBECONFIG = credentials("config") // we retrieve kubeconfig from secret file called config saved on jenkins
+        DATABASE_URL = credentials("DATABASE_URL") // retrieve database URL from Jenkins secret
         }
             steps {
                 script {
@@ -71,7 +76,7 @@ stage('Deployment in dev'){
                 cp fastapi/values.yaml values.yml
                 cat values.yml
                 sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
-                helm upgrade --install app fastapi --values=values.yml --namespace dev
+                helm upgrade --install app fastapi --values=values.yml --set env[0].value="$DATABASE_URL" --namespace dev
                 '''
                 }
             }
@@ -81,6 +86,7 @@ stage('Deploiement en staging'){
         environment
         {
         KUBECONFIG = credentials("config") // we retrieve kubeconfig from secret file called config saved on jenkins
+        DATABASE_URL = credentials("DATABASE_URL") // retrieve database URL from Jenkins secret
         }
             steps {
                 script {
@@ -92,7 +98,7 @@ stage('Deploiement en staging'){
                 cp fastapi/values.yaml values.yml
                 cat values.yml
                 sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
-                helm upgrade --install app fastapi --values=values.yml --namespace staging
+                helm upgrade --install app fastapi --values=values.yml --set env[0].value="$DATABASE_URL" --namespace staging
                 '''
                 }
             }
@@ -102,6 +108,7 @@ stage('Deploiement en staging'){
         environment
         {
         KUBECONFIG = credentials("config") // we retrieve kubeconfig from secret file called config saved on jenkins
+        DATABASE_URL = credentials("DATABASE_URL") // retrieve database URL from Jenkins secret
         }
             steps {
             // Create an Approval Button with a timeout of 15minutes.
@@ -119,7 +126,7 @@ stage('Deploiement en staging'){
                 cp fastapi/values.yaml values.yml
                 cat values.yml
                 sed -i "s+tag.*+tag: ${DOCKER_TAG}+g" values.yml
-                helm upgrade --install app fastapi --values=values.yml --namespace prod
+                helm upgrade --install app fastapi --values=values.yml --set env[0].value="$DATABASE_URL" --namespace prod
                 '''
                 }
             }
