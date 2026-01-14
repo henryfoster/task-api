@@ -8,4 +8,4 @@ app.include_router(task_router)
 
 @app.get("/")
 def read_root() -> dict[str, str]:
-    return {"message": "Hello World"}
+    return {"message": "Hello World!"}
