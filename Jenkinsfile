@@ -142,6 +142,12 @@ post { // send email when the job has failed
              subject: "${env.JOB_NAME} - Build # ${env.BUILD_ID} has failed",
              body: "For more info on the pipeline failure, check out the console output at ${env.BUILD_URL}"
     }
+    success {
+        echo "This will run if the job succeeded"
+        mail to: "pikatchugengar@gmail.com",
+             subject: "${env.JOB_NAME} - Build # ${env.BUILD_ID} has succeeded",
+             body: "For more info on the pipeline success, check out the console output at ${env.BUILD_URL}"
+    }
     // ..
 }
 }
